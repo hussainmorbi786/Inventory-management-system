@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inventory Management System</title>
+<style>
+  :root {
+    --bg: #0f172a; --panel: #1e293b; --border: #334155;
+    --text: #e2e8f0; --muted: #94a3b8; --accent: #38bdf8;
+    --green: #22c55e; --red: #ef4444; --amber: #f59e0b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--bg); color: var(--text);
+    min-height: 100vh; display: flex; align-items: center;
+    justify-content: center; padding: 20px;
+  }
+  .app {
+    width: 100%; max-width: 1000px; background: var(--panel);
+    border: 1px solid var(--border); border-radius: 14px;
+    padding: 28px; box-shadow: 0 20px 50px rgba(0,0,0,.4);
+  }
+  h1 { font-size: 1.5rem; margin-bottom: 4px; }
+  .sub { color: var(--muted); font-size: .85rem; margin-bottom: 20px; }
+  .hidden { display: none !important; }
+
+  /* Login */
+  .login-box { max-width: 360px; margin: 0 auto; text-align: center; }
+  .login-box input {
+    width: 100%; padding: 12px; margin: 14px 0;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text); font-size: 1rem;
+  }
+  .msg { font-size: .85rem; min-height: 1.2em; margin-top: 6px; }
+  .msg.error { color: var(--red); }
+  .msg.ok { color: var(--green); }
+
+  /* Buttons */
+  button {
+    background: var(--accent); color: #06202e; border: none;
+    padding: 10px 16px; border-radius: 8px; font-weight: 600;
+    cursor: pointer; font-size: .9rem; transition: filter .15s;
+  }
+  button:hover { filter: brightness(1.1); }
+  button.secondary { background: var(--border); color: var(--text); }
+  button.danger { background: var(--red); color: #fff; }
+  button.small { padding: 6px 10px; font-size: .8rem; }
+
+  /* Toolbar / menu */
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+
+  /* Table */
+  table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+  th, td { padding: 10px 8px; text-align: left; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; }
+  td.num { font-variant-numeric: tabular-nums; }
+  .low { color: var(--amber); font-weight: 700; }
+  .empty { text-align: center; color: var(--muted); padding: 30px; }
+
+  /* Form */
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .form-grid label { display: block; font-size: .8rem; color: var(--muted); margin-bottom: 5px; }
+  .form-grid input {
+    width: 100%; padding: 10px; background: var(--bg);
+    border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text); font-size: .95rem;
+  }
+  .form-grid .full { grid-column: 1 / -1; }
+  .form-actions { display: flex; gap: 8px; margin-top: 16px; }
+
+  /* Section card */
+  .card { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 18px; margin-top: 16px; }
+  .card h2 { font-size: 1.05rem; margin-bottom: 12px; }
+  @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ================= LOGIN SCREEN ================= -->
+  <div id="loginScreen" class="login-box">
+    <h1>🔐 Secure Login</h1>
+    <p class="sub">Default User ID: <code>123</code> (3 attempts)</p>
+    <input id="loginId" type="text" inputmode="numeric" placeholder="Enter User ID" autocomplete="off">
+    <button id="loginBtn" style="width:100%">Login</button>
+    <div id="loginMsg" class="msg"></div>
+  </div>
+
+  <!-- ================= MAIN APP ================= -->
+  <div id="mainScreen" class="hidden">
+    <h1>📦 Inventory Management System</h1>
+    <p class="sub">Logged in as <strong>Admin</strong></p>
+
+    <div class="toolbar">
+      <button data-view="list">View Inventory</button>
+      <button data-view="add" class="secondary">➕ Add Item</button>
+      <button data-view="search" class="secondary">🔍 Search</button>
+      <button data-view="edit" class="secondary">✏️ Edit</button>
+      <button data-view="delete" class="secondary">🗑️ Delete</button>
+      <button data-view="low" class="secondary">⚠️ Low Stock</button>
+      <button id="logoutBtn" class="danger" style="margin-left:auto">Logout</button>
+    </div>
+
+    <!-- VIEW: LIST -->
+    <div id="view-list" class="view">
+      <div id="inventoryTableWrap"></div>
+    </div>
+
+    <!-- VIEW: ADD -->
+    <div id="view-add" class="view hidden">
+      <div class="card">
+        <h2>Add New Item</h2>
+        <div class="form-grid">
+          <div><label>Item ID</label><input id="addId" type="text" inputmode="numeric"></div>
+          <div><label>Item Name</label><input id="addName" type="text"></div>
+          <div><label>Price ($)</label><input id="addPrice" type="text" inputmode="decimal"></div>
+          <div><label>Quantity</label><input id="addQty" type="text" inputmode="numeric"></div>
+          <div class="full"><label>Warehouse Location</label><input id="addLocation" type="text" placeholder="e.g., Aisle A, Shelf 3"></div>
+        </div>
+        <div id="addMsg" class="msg"></div>
+        <div class="form-actions">
+          <button id="addSubmit">Add Item</button>
+          <button class="secondary" data-view="list">Back to List</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW: SEARCH -->
+    <div id="view-search" class="view hidden">
+      <div class="card">
+        <h2>Search Item by ID</h2>
+        <div class="form-grid">
+          <div><label>Item ID</label><input id="searchId" type="text" inputmode="numeric"></div>
+        </div>
+        <div class="form-actions">
+          <button id="searchSubmit">Search</button>
+          <button class="secondary" data-view="list">Back to List</button>
+        </div>
+        <div id="searchResult" class="msg"></div>
+      </div>
+    </div>
+
+    <!-- VIEW: EDIT -->
+    <div id="view-edit" class="view hidden">
+      <div class="card">
+        <h2>Edit Item</h2>
+        <div class="form-grid">
+          <div><label>Item ID to Edit</label><input id="editId" type="text" inputmode="numeric"></div>
+        </div>
+        <div class="form-actions">
+          <button id="editLoad">Load Item</button>
+          <button class="secondary" data-view="list">Back to List</button>
+        </div>
+        <div id="editMsg" class="msg"></div>
+
+        <div id="editFields" class="hidden" style="margin-top:16px">
+          <div class="form-grid">
+            <div class="full"><label>Name (blank = keep old)</label><input id="editName" type="text"></div>
+            <div><label>Price (blank or -1 = keep old)</label><input id="editPrice" type="text" inputmode="decimal"></div>
+            <div><label>Quantity (blank or -1 = keep old)</label><input id="editQty" type="text" inputmode="numeric"></div>
+            <div class="full"><label>Location (blank or -1 = keep old)</label><input id="editLocation" type="text"></div>
+          </div>
+          <div class="form-actions">
+            <button id="editSave">Save Changes</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW: DELETE -->
+    <div id="view-delete" class="view hidden">
+      <div class="card">
+        <h2>Delete Item</h2>
+        <div class="form-grid">
+          <div><label>Item ID to Delete</label><input id="deleteId" type="text" inputmode="numeric"></div>
+        </div>
+        <div class="form-actions">
+          <button id="deleteSubmit" class="danger">Delete</button>
+          <button class="secondary" data-view="list">Back to List</button>
+        </div>
+        <div id="deleteMsg" class="msg"></div>
+      </div>
+    </div>
+
+    <!-- VIEW: LOW STOCK -->
+    <div id="view-low" class="view hidden">
+      <div class="card">
+        <h2>Low Stock Report</h2>
+        <div class="form-grid">
+          <div><label>Threshold (show qty ≤ threshold)</label><input id="lowThreshold" type="text" inputmode="numeric" value="10"></div>
+        </div>
+        <div class="form-actions">
+          <button id="lowSubmit">Generate Report</button>
+          <button class="secondary" data-view="list">Back to List</button>
+        </div>
+        <div id="lowResult" style="margin-top:16px"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   STORAGE LAYER  (web equivalent of your `vector<Item>`)
+   ========================================================= */
+const STORAGE_KEY = 'inventory_items_v1';
+const PASSKEY = 123;
+const MAX_ATTEMPTS = 3;
+
+let inventory = loadInventory();
+
+function loadInventory() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+  } catch { return []; }
+}
+function saveInventory() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(inventory));
+}
+
+/* =========================================================
+   HELPERS
+   ========================================================= */
+const $ = id => document.getElementById(id);
+
+function setMsg(el, text, type = '') {
+  el.textContent = text;
+  el.className = 'msg' + (type ? ' ' + type : '');
+}
+
+// Strict integer validation (mirrors cin >> int behaviour)
+function parseId(str) {
+  str = String(str).trim();
+  if (!/^\d+$/.test(str)) return null;
+  const n = Number(str);
+  return Number.isSafeInteger(n) ? n : null;
+}
+
+function parseNonNegNumber(str, allowDecimal) {
+  str = String(str).trim();
+  if (str === '') return null;
+  const n = Number(str);
+  if (!isFinite(n) || n < 0) return null;
+  if (!allowDecimal && !Number.isInteger(n)) return null;
+  return n;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* =========================================================
+   LOGIN
+   ========================================================= */
+let attempts = 0;
+
+function attemptLogin() {
+  const msg = $('loginMsg');
+  const raw = $('loginId').value;
+  const id = parseId(raw);
+
+  if (id === null) {
+    setMsg(msg, '⚠️ Error: Please enter a numeric ID.', 'error');
+    return;
+  }
+  if (id === PASSKEY) {
+    setMsg(msg, '✅ Login Successful! Welcome, Admin.', 'ok');
+    setTimeout(() => {
+      $('loginScreen').classList.add('hidden');
+      $('mainScreen').classList.remove('hidden');
+      renderInventory();
+      showView('list');
+    }, 400);
+  } else {
+    attempts++;
+    if (attempts >= MAX_ATTEMPTS) {
+      setMsg(msg, '🚫 Too many failed attempts. System Locked.', 'error');
+      $('loginBtn').disabled = true;
+      $('loginId').disabled = true;
+    } else {
+      setMsg(msg, `❌ Incorrect ID. You have ${MAX_ATTEMPTS - attempts} attempts left.`, 'error');
+    }
+  }
+}
+
+$('loginBtn').addEventListener('click', attemptLogin);
+$('loginId').addEventListener('keydown', e => { if (e.key === 'Enter') attemptLogin(); });
+
+$('logoutBtn').addEventListener('click', () => {
+  $('mainScreen').classList.add('hidden');
+  $('loginScreen').classList.remove('hidden');
+  $('loginId').value = '';
+  $('loginMsg').textContent = '';
+  attempts = 0;
+  $('loginBtn').disabled = false;
+  $('loginId').disabled = false;
+});
+
+/* =========================================================
+   VIEW NAVIGATION
+   ========================================================= */
+function showView(name) {
+  document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+  const el = $('view-' + name);
+  if (el) el.classList.remove('hidden');
+  if (name === 'list') renderInventory();
+}
+
+document.querySelectorAll('[data-view]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const v = btn.getAttribute('data-view');
+    if (v === 'list' || v === 'add' || v === 'search' || v === 'edit' || v === 'delete' || v === 'low') {
+      showView(v);
+    }
+  });
+});
+
+/* =========================================================
+   DISPLAY INVENTORY  (mirrors displayInventory())
+   ========================================================= */
+function renderInventory() {
+  const wrap = $('inventoryTableWrap');
+  if (inventory.length === 0) {
+    wrap.innerHTML = '<div class="empty">📭 Inventory is empty.</div>';
+    return;
+  }
+  let html = `<table>
+    <thead><tr>
+      <th>ID</th><th>Name</th><th>Price</th><th>Qty</th><th>Location</th>
+    </tr></thead><tbody>`;
+  for (const it of inventory) {
+    html += `<tr>
+      <td class="num">${it.id}</td>
+      <td>${escapeHtml(it.name)}</td>
+      <td class="num">$${Number(it.price).toFixed(2)}</td>
+      <td class="num">${it.quantity}</td>
+      <td>${escapeHtml(it.location)}</td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+/* =========================================================
+   ADD ITEM  (mirrors addItem())
+   ========================================================= */
+$('addSubmit').addEventListener('click', () => {
+  const msg = $('addMsg');
+  const id = parseId($('addId').value);
+  const name = $('addName').value.trim();
+  const price = parseNonNegNumber($('addPrice').value, true);
+  const qty = parseNonNegNumber($('addQty').value, false);
+  const location = $('addLocation').value.trim();
+
+  if (id === null) return setMsg(msg, '❌ Error: ID must be a numeric value.', 'error');
+  if (inventory.some(i => i.id === id)) return setMsg(msg, '❌ Error: An item with this ID already exists!', 'error');
+  if (name === '') return setMsg(msg, '❌ Error: Name cannot be empty.', 'error');
+  if (price === null) return setMsg(msg, '❌ Error: Price must be a valid positive number.', 'error');
+  if (qty === null) return setMsg(msg, '❌ Error: Quantity must be a valid positive number.', 'error');
+  if (location === '') return setMsg(msg, '❌ Error: Location cannot be empty.', 'error');
+
+  inventory.push({ id, name, price, quantity: qty, location });
+  saveInventory();
+  setMsg(msg, '✅ Item added successfully!', 'ok');
+
+  ['addId','addName','addPrice','addQty','addLocation'].forEach(k => $(k).value = '');
+  renderInventory();
+});
+
+/* =========================================================
+   SEARCH  (mirrors searchItem())
+   ========================================================= */
+$('searchSubmit').addEventListener('click', () => {
+  const msg = $('searchResult');
+  const id = parseId($('searchId').value);
+  if (id === null) return setMsg(msg, '❌ Error: Please enter a numeric ID.', 'error');
+
+  const item = inventory.find(i => i.id === id);
+  if (item) {
+    setMsg(msg,
+      `✅ Found: ${item.name} — $${Number(item.price).toFixed(2)} (In Stock: ${item.quantity}) [Location: ${item.location}]`,
+      'ok');
+  } else {
+    setMsg(msg, '❌ Item not found.', 'error');
+  }
+});
+
+/* =========================================================
+   EDIT  (mirrors editItem())
+   ========================================================= */
+let editingItem = null;
+
+$('editLoad').addEventListener('click', () => {
+  const msg = $('editMsg');
+  const id = parseId($('editId').value);
+  if (id === null) return setMsg(msg, '❌ Error: Please enter a numeric ID.', 'error');
+
+  editingItem = inventory.find(i => i.id === id) || null;
+  if (!editingItem) {
+    $('editFields').classList.add('hidden');
+    return setMsg(msg, '❌ Item not found. Cannot edit.', 'error');
+  }
+
+  setMsg(msg, `📋 Loaded: ${editingItem.name}`, 'ok');
+  $('editFields').classList.remove('hidden');
+  $('editName').value = '';
+  $('editName').placeholder = editingItem.name;
+  $('editPrice').value = '';
+  $('editPrice').placeholder = editingItem.price;
+  $('editQty').value = '';
+  $('editQty').placeholder = editingItem.quantity;
+  $('editLocation').value = '';
+  $('editLocation').placeholder = editingItem.location;
+});
+
+$('editSave').addEventListener('click', () => {
+  const msg = $('editMsg');
+  if (!editingItem) return;
+
+  const nameRaw = $('editName').value.trim();
+  const priceRaw = $('editPrice').value.trim();
+  const qtyRaw = $('editQty').value.trim();
+  const locRaw = $('editLocation').value.trim();
+
+  if (nameRaw !== '') editingItem.name = nameRaw;
+
+  if (priceRaw !== '' && priceRaw !== '-1') {
+    const p = parseNonNegNumber(priceRaw, true);
+    if (p === null) return setMsg(msg, '❌ Error: Price must be a valid number.', 'error');
+    editingItem.price = p;
+  }
+  if (qtyRaw !== '' && qtyRaw !== '-1') {
+    const q = parseNonNegNumber(qtyRaw, false);
+    if (q === null) return setMsg(msg, '❌ Error: Quantity must be a valid number.', 'error');
+    editingItem.quantity = q;
+  }
+  if (locRaw !== '' && locRaw !== '-1') editingItem.location = locRaw;
+
+  saveInventory();
+  renderInventory();
+  setMsg(msg, '✅ Item updated successfully!', 'ok');
+  $('editFields').classList.add('hidden');
+  editingItem = null;
+});
+
+/* =========================================================
+   DELETE  (mirrors deleteItem())
+   ========================================================= */
+$('deleteSubmit').addEventListener('click', () => {
+  const msg = $('deleteMsg');
+  const id = parseId($('deleteId').value);
+  if (id === null) return setMsg(msg, '❌ Error: Please enter a numeric ID.', 'error');
+
+  const idx = inventory.findIndex(i => i.id === id);
+  if (idx === -1) return setMsg(msg, '❌ Item not found. Cannot delete.', 'error');
+
+  const removed = inventory.splice(idx, 1)[0];
+  saveInventory();
+  renderInventory();
+  setMsg(msg, `✅ Item deleted successfully (${removed.name}).`, 'ok');
+  $('deleteId').value = '';
+});
+
+/* =========================================================
+   LOW STOCK  (mirrors lowStockReport())
+   ========================================================= */
+$('lowSubmit').addEventListener('click', () => {
+  const result = $('lowResult');
+  const threshold = parseNonNegNumber($('lowThreshold').value, false);
+  if (threshold === null) {
+    result.innerHTML = '<div class="msg error">❌ Error: Please enter a valid number.</div>';
+    return;
+  }
+
+  const low = inventory.filter(i => i.quantity <= threshold);
+  if (low.length === 0) {
+    result.innerHTML = `<div class="msg ok">✅ All items are sufficiently stocked (above ${threshold}).</div>`;
+    return;
+  }
+
+  let html = `<h2 style="font-size:1rem;margin-bottom:10px">⚠️ LOW STOCK REPORT (Below ${threshold})</h2>
+    <table><thead><tr><th>ID</th><th>Name</th><th>Qty</th><th>Location</th></tr></thead><tbody>`;
+  for (const it of low) {
+    html += `<tr>
+      <td class="num">${it.id}</td>
+      <td>${escapeHtml(it.name)}</td>
+      <td class="num low">${it.quantity}</td>
+      <td>${escapeHtml(it.location)}</td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  result.innerHTML = html;
+});
+
+/* =========================================================
+   INIT
+   ========================================================= */
+renderInventory();
+</script>
+</body>
+</html>
